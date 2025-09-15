@@ -1,0 +1,26 @@
+from kafka import KafkaConsumer
+import json
+import boto3
+
+# Setup MinIO (S3 compatible) client for storage
+s3 = boto3.client('s3',
+                  endpoint_url='http://localhost:9000',
+                  aws_access_key_id='minioadmin',
+                  aws_secret_access_key='minioadmin')
+
+consumer = KafkaConsumer('satellite-feed',
+                         bootstrap_servers='localhost:9092',
+                         value_deserializer=lambda x: json.loads(x.decode('utf-8')))
+
+for msg in consumer:
+    data = msg.value
+    print(f"Received: {data}")
+    # Simulate processing
+    processed = {
+        'satellite_id': data['satellite_id'],
+        'timestamp': data['timestamp'],
+        'adjusted_value': data['payload'] * 0.95  # some calibration
+    }
+    filename = f"{data['satellite_id']}_{data['timestamp']}.json"
+    s3.put_object(Bucket='satellite-data', Key=filename, Body=json.dumps(processed))
+    print(f"Stored processed data as {filename}")
