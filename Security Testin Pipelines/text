@@ -1,0 +1,46 @@
+name: DevSecOps Security Pipeline
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  security-checks:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Run Pre-commit Security Hooks
+        uses: pre-commit/action@v3
+
+      - name: Run Static Code Analysis (CodeQL)
+        uses: github/codeql-action/init@v2
+        with:
+          languages: python,javascript
+
+      - name: Analyze CodeQL Results
+        uses: github/codeql-action/analyze@v2
+
+      - name: Scan Dependencies with Snyk
+        uses: snyk/actions@master
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+
+      - name: Run Unit Tests
+        run: |
+          python -m unittest discover
+
+  dast-scan:
+    needs: security-checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Run OWASP ZAP Baseline Scan
+        uses: zaproxy/action-baseline@v0.6.0
+        with:
+          target: 'https://staging.example.com'
+          fail-on-error: true
