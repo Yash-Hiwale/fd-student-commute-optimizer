@@ -1,0 +1,64 @@
+const express = require('express');
+const cors = require('cors');
+const { v4: uuidv4 } = require('uuid');
+const app = express();
+const port = 3000;
+
+app.use(cors());
+app.use(express.json());
+
+const users = new Map(); // userId -> username
+const routes = new Map(); // routeId -> { userId, origin, destination }
+
+function haversineDistance(coords1, coords2) {
+    const toRad = (x) => x * Math.PI / 180;
+    const [lat1, lon1] = coords1;
+    const [lat2, lon2] = coords2;
+    const R = 6371; // Earth radius in km
+    const dLat = toRad(lat2 - lat1);
+    const dLon = toRad(lon2 - lon1);
+    const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon/2)**2;
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+}
+
+// Register user endpoint
+app.post('/register', (req, res) => {
+    const { username } = req.body;
+    if ([...users.values()].includes(username)) {
+        return res.status(400).json({ error: "Username already exists" });
+    }
+    const userId = uuidv4();
+    users.set(userId, username);
+    res.json({ userId, username });
+});
+
+// Add route endpoint
+app.post('/add_route', (req, res) => {
+    const { userId, origin, destination } = req.body;
+    if (!users.has(userId)) return res.status(400).json({ error: "Invalid userId" });
+    const routeId = uuidv4();
+    routes.set(routeId, { userId, origin, destination });
+    res.json({ routeId });
+});
+
+// Match routes endpoint
+app.get('/match_routes', (req, res) => {
+    const { routeId } = req.query;
+    if (!routes.has(routeId)) return res.status(400).json({ error: "Invalid routeId" });
+    const currentRoute = routes.get(routeId);
+    const matches = [];
+    for (const [rid, route] of routes.entries()) {
+        if (rid === routeId) continue;
+        const originDist = haversineDistance(currentRoute.origin, route.origin);
+        const destDist = haversineDistance(currentRoute.destination, route.destination);
+        if (originDist < 5 && destDist < 5) {
+            matches.push({ routeId: rid, userId: route.userId, originDist, destDist });
+        }
+    }
+    res.json({ matches });
+});
+
+app.listen(port, () => {
+    console.log(`Server running on http://localhost:${port}`);
+});
