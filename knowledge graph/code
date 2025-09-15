@@ -1,0 +1,40 @@
+import networkx as nx
+from openai import OpenAI
+import os
+import subprocess
+
+# Setup knowledge graph
+G = nx.Graph()
+G.add_node("Binary Search Tree", description="A tree with node values that allows efficient searching.")
+
+# AI setup
+client = OpenAI()
+
+def generate_lecture(concept_desc):
+    prompt = f"Create slide points and script explaining: {concept_desc}"
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[{"role":"user","content":prompt}]
+    )
+    return response.choices[0].message.content
+
+def create_manim_script(lecture_text, filename="slide_scene.py"):
+    lines = lecture_text.split("\n")
+    with open(filename, "w") as f:
+        f.write("from manim import *\n\n")
+        f.write("class SlideScene(Scene):\n")
+        f.write("    def construct(self):\n")
+        # naïve insertion for demonstration; real parsing needed
+        for line in lines:
+            f.write(f"        self.play(Write(Text('{line}')))\n")
+        f.write("        self.wait(2)\n")
+
+def render_video():
+    subprocess.run(["manim", "-pql", "slide_scene.py", "SlideScene"])
+
+# Main pipeline
+concept = "Binary Search Tree"
+desc = G.nodes[concept]["description"]
+lecture_text = generate_lecture(desc)
+create_manim_script(lecture_text)
+render_video()
