@@ -1,0 +1,53 @@
+from flask import Flask, request, jsonify
+from datetime import datetime, timedelta
+import uuid
+
+app = Flask(__name__)
+
+# Mock user database
+users = {
+    "admin": {"role": "admin", "folders": ["all"]},
+    "parent": {"role": "family", "folders": ["photos", "finance"]},
+    "sibling": {"role": "family", "folders": ["photos"]},
+    "guest1": {"role": "guest", "folders": ["guest_folder"], "expires": datetime.utcnow() + timedelta(hours=2)}
+}
+
+# Authentication stub (insecure, for demo only)
+def authenticate(username):
+    return users.get(username, None)
+
+# API to get accessible folders
+@app.route('/folders', methods=['GET'])
+def get_folders():
+    username = request.args.get('username')
+    user = authenticate(username)
+    if not user:
+        return jsonify({"error": "Unauthorized"}), 401
+
+    # Check guest expiration
+    if user["role"] == "guest":
+        if datetime.utcnow() > user.get("expires", datetime.utcnow()):
+            return jsonify({"error": "Guest access expired"}), 403
+
+    return jsonify({"folders": user["folders"]})
+
+# API to create guest access token (admin only)
+@app.route('/create_guest', methods=['POST'])
+def create_guest():
+    admin_user = request.json.get("admin")
+    if not authenticate(admin_user) or users[admin_user]["role"] != "admin":
+        return jsonify({"error": "Unauthorized"}), 401
+    
+    guest_id = str(uuid.uuid4())
+    expire_hours = int(request.json.get("expire_hours", 2))
+    folders = request.json.get("folders", ["guest_folder"])
+    
+    users[guest_id] = {
+        "role": "guest",
+        "folders": folders,
+        "expires": datetime.utcnow() + timedelta(hours=expire_hours)
+    }
+    return jsonify({"guest_id": guest_id, "expires": str(users[guest_id]["expires"]), "folders": folders})
+
+if __name__ == '__main__':
+    app.run(port=5000)
