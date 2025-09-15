@@ -1,0 +1,19 @@
+from kafka import KafkaProducer
+import time
+import random
+import json
+
+producer = KafkaProducer(bootstrap_servers='localhost:9092',
+                         value_serializer=lambda v: json.dumps(v).encode('utf-8'))
+
+satellite_ids = ['SAT-A', 'SAT-B', 'SAT-C']
+
+while True:
+    data = {
+        'satellite_id': random.choice(satellite_ids),
+        'timestamp': int(time.time()),
+        'payload': random.random() * 1000  # Simulated sensor value
+    }
+    producer.send('satellite-feed', data)
+    print(f"Sent: {data}")
+    time.sleep(1)
